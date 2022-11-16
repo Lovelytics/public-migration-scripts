@@ -8,8 +8,9 @@ class Workspace():
     def __init__(self, checkpoint, workspace, all_workspaces):
         self.path = "./logs/"+checkpoint+"/"
         self.workspace = str(workspace)
-        self.new_path = "./logs/"+workspace+"/"
+        self.new_path = "./logs/"+checkpoint+"_"+workspace+"/"
         self.workspaces = all_workspaces
+        self.checkpoint = checkpoint
         split = Split(checkpoint, workspace)
 
         self.map = {
@@ -37,48 +38,64 @@ class Workspace():
             'success_metastore': ["metastore.csv", split.success_metastore],
             'table_acls':["metastore.csv", split.table_acls]
         }
-
-        self.create_workspace(name=workspace)
+        print("*"*80)
+        print(f"Starting with workspace {workspace}...")
+        self.create_workspace(workspace, checkpoint)
 
     @staticmethod
-    def create_workspace(name="test"):
+    def create_workspace(wk="test", checkpoint=""):
         """
         summary: creates a directory for each workspace
         """
         directories = os.listdir("./logs/")
+        name = checkpoint+"_"+wk
         if name not in directories:
             os.mkdir("./logs/"+name)
-            print("Workspace directory {} was successfully created.".format(name))
+            #print("Workspace directory {} was successfully created.".format(name))
 
     @staticmethod
     def write_logs(log, path, file_name):
         file_path = path+file_name
+        #print(file_path)
         with open(file_path, 'w') as f:
-            json.dump(log, f)
+            for l in log:
+                f.write(json.dumps(l) + '\n')
 
-    def copy_other_files(self):
-        total = os.listdir("./logs/")
+    def copy_other_files(self, workspace_skipped_csv_dict):
+        total = ['app_logs', 'checkpoint', 'database_details.log', 'source_info.txt']
         for w in self.workspaces:
-            total_in_workspace = os.listdir("./logs/"+w)
+            skipped_csvs = workspace_skipped_csv_dict[w]
+            total_in_workspace = os.listdir("./logs/"+self.checkpoint+"_"+w)
             for file in total:
                 if file not in self.workspaces:
                     try:
                         if os.path.isfile("./logs/"+file):
-                            print(f"Copying file {file} to workspace {w}")
-                            shutil.copy("./logs/"+file, "./logs/"+w+"/"+file)
+                            #print(f"Copying file {file} to workspace {w}")
+                            shutil.copy("./logs/"+self.checkpoint+"/"+file, "./logs/"+self.checkpoint+"_"+w+"/"+file)
                         else:
-                            print(f"Copying directory {file} to workspace {w}")
-                            shutil.copytree("./logs/"+file, "./logs/"+w+"/"+file)
-                    except:
-                        
+                            #print(f"Copying directory {file} to workspace {w}")
+                            shutil.copytree("./logs/"+self.checkpoint+"/"+file, "./logs/"+self.checkpoint+"_"+w+"/"+file)
+                    except Exception as e:
+                        pass
+
     def run(self):
         for m in self.map.keys():
-            module_function = self.map[m][1]
-            csv = self.map[m][0]
-            success = self.split_csv(module_function, csv)
+            #print(f"Starting with {m}...")
+            try:
+                module_function = self.map[m][1]
+                csv = self.map[m][0]
+                skipped_csv = self.split_csv(m, module_function, csv)
+            except Exception as e:
+                #print(f"{self.map[m][0]} was not found. ")
+                #print(e)
+                pass
+        return skipped_csv
 
-    def split_csv(self, module_function, csv):
+    def split_csv(self, module, module_function, csv):
+        skipped_csv = []
         if csv not in os.listdir("./csv"):
+            print(f"{csv} not found. Skipping...")
+            skipped_csv.append(csv)
             return 1
 
         df = pd.read_csv("./csv/"+csv, index_col=0)
@@ -86,6 +103,6 @@ class Workspace():
         logs = module_function(current_df.reset_index())
 
         if logs != 0:
-            module = str(csv)[:-4]
-            print(f"Writing split {module} logs for workspace {self.workspace}")
+            #print(f"Writing split {module} logs for workspace {self.workspace}")
             self.write_logs(logs, self.new_path, module+".log")
+        return skipped_csv

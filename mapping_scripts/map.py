@@ -14,11 +14,13 @@ def main():
     checkpoint = args.checkpoint
     workspaces = args.workspaces
 
+    workspace_skipped_csv = {}
     for w in workspaces:
         workspace = Workspace(checkpoint, w, workspaces)
-        workspace.run()
+        skipped_csv = workspace.run()
+        workspace_skipped_csv[w] = skipped_csv
 
-    workspace.copy_other_files()
+    workspace.copy_other_files(workspace_skipped_csv)
 
 if __name__ == "__main__":
     main()

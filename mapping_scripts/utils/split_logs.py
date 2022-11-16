@@ -8,7 +8,9 @@ class Split():
     def __init__(self, checkpoint, workspace):
         self.path = "./logs/"+checkpoint+"/"
         self.workspace = workspace
-        self.new_path = "./logs/"+workspace+"/"
+        self.new_path = "./logs/"+checkpoint+"_"+workspace+"/"
+        self.not_imported_users = []
+        self.not_imported_groups = []
 
     def read_log(self, file_name):
         """
@@ -19,13 +21,14 @@ class Split():
                 data = f.read().split("\n")
             return data
         except FileNotFoundError as e:
-            return ''
+            return print("File not found. ")
         except Exception as e:
-            print(f"ERROR reading file {file_name}")
+            print(f"There was an error while reading {file_name}. ")
             print(e)
             return ''
 
     def users(self, df, file_name="users.log"):
+        self.not_imported_users = []
         data = self.read_log(file_name)
         data_write = []
         for d in data:
@@ -33,10 +36,16 @@ class Split():
                 if len(d) != 0:
                     d = d.strip()
                     d = json.loads(d)
-                    if len(df.loc[(df['userName'] == d['userName'])]) > 0:
+                    if d['userName'] in df['userName'].tolist():
                         data_write.append(d)
+                    else:
+                        if d['userName'] not in df['userName'].tolist():
+                            #print(f"{d['userName']} not in the workspace. Skipping..")
+                            self.not_imported_users.append(d['userName'])
             except Exception as e:
-                print("ERROR in splitting users.log")
+                print(f"There was an error splitting {file_name}")
+                print(e)
+                #print("ERROR in splitting users.log")
         return data_write
 
     def user_dirs(self, df=None, file_name="user_dirs.log"):
@@ -66,7 +75,8 @@ class Split():
                     if (path[1:].startswith(tuple(art_names)) or path.startswith(tuple(user_paths)) or path.startswith(tuple(shared_paths))):
                         data_write.append(d)
                 except Exception as e:
-                    print("ERROR while splitting users_dirs.log")
+                    print(f"There was an error splitting {file_name}")
+                    print(e)
         return data_write
 
     def user_workspace(self, df, file_name="user_workspace.log"):
@@ -97,7 +107,7 @@ class Split():
                     if (path[1:].startswith(tuple(art_names)) or path.startswith(tuple(user_paths)) or path.startswith(tuple(shared_paths))):
                         data_write.append(d)
                 except Exception as e:
-                    print("ERROR while splitting user_workspace.log")
+                    print(f"There was an error splitting {file_name}")
         return data_write
 
     def instance_pools(self, df, file_name="instance_pools.log"):
@@ -111,7 +121,8 @@ class Split():
                     if len(df.loc[df['instance_pool_id'] == d['instance_pool_id']]) > 0:
                         data_write.append(d)
             except Exception as e:
-                print("ERROR while splitting instance_pools.log")
+                print(f"There was an error splitting {file_name}")
+
         return data_write
 
     def libraries(self, df, file_name="libraries.log"):
@@ -125,7 +136,7 @@ class Split():
                     if len(df.loc[(df['library_paths'] == d['path'])]) > 0:
                         data_write.append(d)
             except Exception as e:
-                print("ERROR while splitting libraries.log")
+                print(f"There was an error splitting {file_name}")
         return data_write
 
     def jobs(self, df, file_name="jobs.log"):
@@ -139,7 +150,7 @@ class Split():
                     if len(df.loc[(df['job_ids'] == d['job_id'])]) > 0:
                         data_write.append(d)
             except Exception as e:
-                print("ERROR while splitting jobs.log")
+                print(f"There was an error splitting {file_name}")
         return data_write
 
     def acl_jobs(self, df, file_name="acl_jobs.log"):
@@ -153,12 +164,14 @@ class Split():
                     jobid = d['object_id'].split("/")[-1]
                     if len(df.loc[df['job_ids'] == int(jobid)]) > 0:
                         data_write.append(d)
+                    if "access_control_list" in d.keys():
+                        d['access_control_list'] = self.fix_acls(d['access_control_list'])
             except Exception as e:
-                print("ERROR while splitting acl_jobs.log")
+                print(f"There was an error splitting {file_name}")
         return data_write
 
     def secret_scopes(self, df, file_name=None):
-        scopes = df["secret_scopes"]
+        scopes = df["secret_scope_names"]
         for scope in scopes:
             if "secret_scopes" not in os.listdir(self.new_path):
                 os.mkdir(self.new_path+"secret_scopes")
@@ -175,10 +188,13 @@ class Split():
                 if len(d) != 0:
                     d = d.strip()
                     d = json.loads(d)
-                    if len(df.loc[(df['0'] == d['scope_name'])]) > 0:
+                    if len(df.loc[(df['secret_scope_names'] == d['scope_name'])]) > 0:
                         data_write.append(d)
+                    if "items" in d.keys():
+                        d['items'] = self.fix_acls(d['items'])
             except Exception as e:
-                print("ERROR while splitting secret_scopes_acls.log")
+                print(f"There was an error splitting {file_name}")
+                print(e)
         return data_write
 
     def clusters(self, df, file_name = "clusters.log"):
@@ -192,7 +208,7 @@ class Split():
                     if len(df.loc[(df['cluster_name'] == d['cluster_name'])]) > 0:
                         data_write.append(d)
             except Exception as e:
-                print("ERROR while splitting clusters.log")
+                print(f"There was an error splitting {file_name}")
         return data_write
 
     def cluster_policy(self, df, file_name = "cluster_policies.log"):
@@ -206,7 +222,7 @@ class Split():
                     if len(df.loc[(df['policy_id'] == d['policy_id'])]) > 0:
                         data_write.append(d)
             except Exception as e:
-                print("ERROR while cluster_policies.log")
+                print(f"There was an error splitting {file_name}")
         return data_write
 
     def acl_clusters(self, df, file_name = "acl_clusters.log"):
@@ -218,10 +234,13 @@ class Split():
                     d = d.strip()
                     d = json.loads(d)
                     cluster = d['object_id'].split("/")[-1]
-                    if len(df.loc[(df['cluster_id'] == cluster)]) > 0:
+                    if cluster in df['cluster_id'].tolist():
                         data_write.append(d)
+                    if "access_control_list" in d.keys():
+                        d['access_control_list'] = self.fix_acls(d['access_control_list'])
             except Exception as e:
-                print("ERROR while splitting acl_clusters.log")
+                print(f"There was an error splitting {file_name}")
+                print(e)
         return data_write
 
     def acl_cluster_policies(self, df, file_name = "acl_cluster_policies.log"):
@@ -235,8 +254,10 @@ class Split():
                     policy = d['object_id'].split("/")[-1]
                     if len(df.loc[(df['policy_id'] == policy)]) > 0:
                         data_write.append(d)
+                    if "access_control_list" in d.keys():
+                        d['access_control_list'] = self.fix_acls(d['access_control_list'])
             except Exception as e:
-                print("ERROR while splitting the acl_cluster_policies.log")
+                print(f"There was an error splitting {file_name}")
         return data_write
 
     def instance_profiles(self, df, file_name="instance_profiles.log"):
@@ -250,7 +271,8 @@ class Split():
                     if len(df.loc[(df['instance_profile_arn'] == d['instance_profile_arn'])]) > 0:
                         data_write.append(d)
             except Exception as e:
-                print("ERROR while splitting instance_profiles.log")
+                print(f"There was an error splitting {file_name}")
+                print(e)
         return data_write
 
     def mounts(self, df, file_name='mounts.log'):
@@ -264,7 +286,7 @@ class Split():
                     if len(df.loc[(df['mount_paths'] == d['path'])]) > 0:
                         data_write.append(d)
             except Exception as e:
-                print("ERROR while splitting mounts.log")
+                print(f"There was an error splitting {file_name}")
         return data_write
 
     def groups(self, df, file_name=None):
@@ -277,7 +299,10 @@ class Split():
                 src_path = self.path + "groups/" + group
                 shutil.copy(src_path,new_file_path)
             except:
-                print("ERROR while splitting Groups")
+                print(f"There was an error splitting {file_name}")
+
+        all_groups = os.listdir(self.path + "groups")
+        self.not_imported_groups = [g for g in all_groups if g not in groups ]
         return 0
 
     def shared_logs(self, df, file_name=None):
@@ -290,7 +315,7 @@ class Split():
                 src_path = self.path+'artifacts/Shared/'+notebook
                 shutil.copytree(src_path,new_folder_path)
             except Exception as e:
-                print("ERROR while splitting the Shared folder")
+                print(f"There was an error splitting {file_name}")
         return 0
 
     def metastore(self, df, file_name=None):
@@ -305,7 +330,7 @@ class Split():
                 if db not in os.listdir(self.new_path+"metastore/"):
                     shutil.copytree(src_path, new_folder_path)
             except Exception as e:
-                print("ERROR while splitting metastore")
+                print(f"There was an error splitting {file_name}")
         return 0
 
     def success_metastore(self, df, file_name='success_metastore.log'):
@@ -320,7 +345,7 @@ class Split():
                     if len(df.loc[(df['metastore_database'] == database)]) > 0:
                         data_write.append(d)
             except Exception as e:
-                print("ERROR while splitting success_metastore.log")
+                print(f"There was an error splitting {file_name}")
         return data_write
 
     def artifacts(self, df, file_name=None):
@@ -406,8 +431,10 @@ class Split():
                     path = str(d['path'])
                     if (path[1:].startswith(tuple(art_names)) or path.startswith(tuple(user_paths)) or path.startswith(tuple(shared_paths))):
                         data_write.append(d)
+                    if "access_control_list" in d.keys():
+                        d['access_control_list'] = self.fix_acls(d['access_control_list'])
                 except Exception as e:
-                    print("Error when splitting the acl_notebooks.log")
+                    print(f"There was an error splitting {file_name}")
         return data_write
 
     def acl_directories(self, df, file_name="acl_directories.log"):
@@ -436,8 +463,10 @@ class Split():
                     path = str(d['path'])
                     if (path[1:].startswith(tuple(art_names)) or path.startswith(tuple(user_paths)) or path.startswith(tuple(shared_paths))):
                         data_write.append(d)
+                    if "access_control_list" in d.keys():
+                        d['access_control_list'] = self.fix_acls(d['access_control_list'])
                 except Exception as e:
-                    print("ERROR while splitting acl_directories.log")
+                    print(f"There was an error splitting {file_name}")
         return data_write
 
     def table_acls(self, df, file_name="logs/table_acls/00_table_acls.json.gz"):
@@ -454,7 +483,7 @@ class Split():
                     if len(df.loc[(df['metastore_database'] == d['Database'])]) > 0:
                         data_write.append(d)
             except Exception as e:
-                print("ERROR while splitting 00_table_acls.json")
+                print(f"There was an error splitting {file_name}")
 
         if "table_acls" not in os.listdir(self.new_path):
             os.mkdir(self.new_path+"table_acls")
@@ -462,3 +491,20 @@ class Split():
         with open(file_path, 'w') as f:
             json.dump(data_write, f)
         return 0
+
+    def fix_acls(self, acls):
+
+        not_imported_users = self.not_imported_users
+        not_imported_groups = self.not_imported_groups
+        for permission in acls:
+            if 'group_name' in permission.keys():
+                if permission['group_name'] in not_imported_groups:
+                    acls.remove(permission)
+            if 'user_name' in permission.keys():
+                if permission['user_name'] in not_imported_users:
+                    acls.remove(permission)
+            if 'principal' in permission.keys():
+                if permission['principal'] in not_imported_users:
+                    acls.remove(permission)
+
+        return acls
