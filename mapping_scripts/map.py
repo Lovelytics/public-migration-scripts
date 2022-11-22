@@ -5,6 +5,7 @@ def main():
     # checkpoints are optional for export but you will need to use them for the import
     # (each workspace is a 'checkpoint')
 
+    # takes two arguments: checkpoint and workspaces
     all_args = argparse.ArgumentParser()
     all_args.add_argument("--checkpoint", dest="checkpoint", default="", help="set if you are using a checkpoint during export")
     all_args.add_argument("--workspaces", dest="workspaces", nargs="+", required=True, help="list of workspace names. must match csv columns")
@@ -14,8 +15,16 @@ def main():
     checkpoint = args.checkpoint
     workspaces = args.workspaces
 
+    # getting a list of skipped assets for each workspace
     workspace_skipped_csv = {}
+
+    # for each workspace
     for w in workspaces:
+        # create a workspace Class - refer to create_workspace.py
+        # this instantiates the original location of the session and the new location of the session
+        # it also instantiates another class Split - refer to split_logs.py
+        # Split instantiates the same thing as well as two variables: imported users and imported groups (this is used for remaking ACLs)
+
         workspace = Workspace(checkpoint, w, workspaces)
         skipped_csv = workspace.run()
         workspace_skipped_csv[w] = skipped_csv
