@@ -17,25 +17,25 @@ class Workspace():
         self.map = {
             'users': ["users.csv", split.users],
             'instance_pools' : ["instance_pools.csv", split.instance_pools],
-            'libraries': ["libraries.csv", split.libraries],
-            'jobs': ["jobs.csv", split.jobs],
-            'secret_scopes': ["secret_scopes.csv", split.secret_scopes],
-            'clusters': ["clusters.csv", split.clusters],
             'instance_profiles': ["instance_profiles.csv", split.instance_profiles],
-            'mounts': ["mounts.csv", split.mounts],
             'groups': ["groups.csv", split.groups],
-            'shared_logs': ["shared_logs.csv", split.shared_logs],
-            'cluster_policies': ["clusters.csv", split.cluster_policy],
-            'acl_cluster_policies': ["clusters.csv", split.acl_cluster_policies],
-            'acl_clusters':["clusters.csv", split.acl_clusters],
-            'secret_scopes_acls':["secret_scopes.csv", split.secret_scopes_acls],
+            'jobs': ["jobs.csv", split.jobs],
             'acl_jobs': ["jobs.csv", split.acl_jobs],
-            'user_workspace': ["users.csv", split.user_workspace],
+            'secret_scopes': ["secret_scopes.csv", split.secret_scopes],
+            'secret_scopes_acls':["secret_scopes.csv", split.secret_scopes_acls],
+            'clusters': ["clusters.csv", split.clusters],
+            'cluster_policies': ["clusters.csv", split.cluster_policy],
+            'acl_clusters':["clusters.csv", split.acl_clusters],
+            'acl_cluster_policies': ["clusters.csv", split.acl_cluster_policies],
+            'mounts': ["mounts.csv", split.mounts],
+            'shared_notebooks': ["global_shared_logs.csv", split.shared_notebooks],
+            'global_notebooks': ["global_logs.csv", split.global_notebooks],
+            'user_notebooks': ["users.csv", split.user_notebooks],
             'user_dirs': ["users.csv", split.user_dirs],
-            'metastore': ["metastore.csv", split.metastore],
-            'artifacts': ["users.csv", split.artifacts],
+            'user_workspace': ["users.csv", split.user_workspace],
             'acl_notebooks':["users.csv", split.acl_notebooks],
             'acl_directories':["users.csv", split.acl_directories],
+            'metastore': ["metastore.csv", split.metastore],
             'success_metastore': ["metastore.csv", split.success_metastore],
             'table_acls':["metastore.csv", split.table_acls]
         }
@@ -53,18 +53,6 @@ class Workspace():
         if name not in directories:
             os.mkdir("./logs/"+name)
             #print("Workspace directory {} was successfully created.".format(name))
-
-    @staticmethod
-    def write_logs(log, path, file_name):
-        """
-        summary: function to write a dict to a 'json' log in the same way that
-        the original logs are written
-        """
-        file_path = path+file_name
-        #print(file_path)
-        with open(file_path, 'w') as f:
-            for l in log:
-                f.write(json.dumps(l) + '\n')
 
     def copy_other_files(self, workspace_skipped_csv_dict):
         """
@@ -94,7 +82,7 @@ class Workspace():
         """
         # for each
         for m in self.map.keys():
-            #print(f"Starting with {m}...")
+            print(f"    Starting with {m}...")
             try:
                 # get the asset function that splits that asset
                 module_function = self.map[m][1]
@@ -111,23 +99,15 @@ class Workspace():
     def split_csv(self, module, module_function, csv):
         skipped_csv = []
         if csv not in os.listdir("./csv"):
-            print(f"{csv} not found. Skipping...")
+            #print(f"{csv} not found. Skipping...")
             skipped_csv.append(csv)
             return 1
         # reads csv and inputs attribute columns where the workspace column is set to Y
         # you can set that variable to True or 1 or anything else that the client is using
         # but it will ignore anything else
-
         df = pd.read_csv("./csv/"+csv, index_col=0)
         current_df = df[df[self.workspace] == "Y"]
-
         # send that subset dataframe to the module function found in Split class
-        logs = module_function(current_df.reset_index())
-
-        # if the logs output a dict, then write the dict to a log; otherwise (basically if it is splitting
-        # the metastore or something directory), ignore the write function
-        if logs != 0:
-            #print(f"Writing split {module} logs for workspace {self.workspace}")
-            self.write_logs(logs, self.new_path, module+".log")
-            
+        success = module_function(current_df.reset_index())
+        # success should be 0
         return skipped_csv
