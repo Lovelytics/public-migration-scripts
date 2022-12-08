@@ -446,15 +446,15 @@ def _post_create_all_new_permissions_api_call(E2, E2TOKEN, NEW_OWNER, NEWJOB):
         "access_control_list": [
             {
                 "user_name": "robb.fournier@sportsbet.com.au",
-                "permission_level": "CAN_MANAGE"
+                "permission_type": "CAN_MANAGE"
             },
             {
                 "user_name": NEW_OWNER,
-                "permission_level": "IS_OWNER"
+                "permission_type": "IS_OWNER"
             }, 
             {
                 "group_name": "admins",
-                "permission_level": "CAN MANAGE"
+                "permission_type": "CAN MANAGE"
             }
         ]
     }
