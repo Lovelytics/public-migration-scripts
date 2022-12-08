@@ -193,6 +193,19 @@ def _get_instance_pool_list(E2URL, E2TOKEN):
         print(response.text)
         return "Failed"
 
+def _replace_instance_profile_ARN(arn_mapping, jobJSON):
+    try:
+        for task in jobJSON['tasks']:
+            try:
+                old_ip_arn = task['new_cluster']['aws_attributes']['instance_profile_arn']
+                task['new_cluster']['aws_attributes']['instance_profile_arn'] = arn_mapping[old_ip_arn]
+            except KeyError:
+                print("No instance profile ARN for task found.")
+    except KeyError:
+        print("No tasks found.")
+    return jobJSON
+        
+
 def _replace_instance_pools(E2URL, tokenE2, jobJSON, STURL, tokenST):
     allE2IPs = _get_instance_pool_list(E2URL, tokenE2)
     for i, task in enumerate(jobJSON["tasks"]):
@@ -310,6 +323,76 @@ def _get_job_permissions_api_call(workspaceURLST, jobID, tokenST):
         print(response.text)
         return None
 
+def _get_E2_user_list(workspaceURLE2, tokenE2):
+    print(f"Handling user capitalization issue... getting E2 users.")
+    requestsURL = workspaceURLE2 + "/api/2.0/preview/scim/v2/Users"
+    headers = {
+        'Authorization': f'Bearer {tokenE2}'
+    }
+    print(requestsURL)
+    response = requests.request("GET", requestsURL, headers=headers)
+    e2_user_list = []
+    if response.status_code == 200:
+        responseJSON = response.json()
+        try:
+            for resource in responseJSON['Resources']:
+                for email in resource['emails']:
+                    e2_user_list.append(email['value'])
+        except Exception as e:
+            print(e)
+        return e2_user_list
+    else:
+        print(response.text)
+        return e2_user_list
+
+
+def _handle_username_capitalization(E2, tokenE2, jobJSON, newJobID):
+    e2_user_list = _get_E2_user_list(E2, tokenE2)
+    allPermissions = []
+
+    permissionLevels = [[perm['permission_level'] for perm in permissionACL['all_permissions']] for permissionACL in jobJSON]
+    if "IS_OWNER" not in permissionLevels:
+        addOwner = True
+
+    for permissionACL in jobJSON:
+        print(permissionACL)
+        permissionACL['permission_level'] = permissionACL['all_permissions'][0]['permission_level']
+        del permissionACL['all_permissions']
+        if "user_name" in permissionACL.keys():
+            old_user = permissionACL['user_name']
+            new_user = [user for user in e2_user_list if user.lower() == old_user.lower()][0]
+            print(f'Changing username {old_user} to {new_user}.')
+            permissionACL['user_name'] = new_user
+        print(permissionACL)
+        allPermissions.append(permissionACL)
+
+    aclList = {}
+
+    if addOwner:
+        method = 'PUT'
+    else:
+        method = 'PATCH'
+
+    aclList["access_control_list"] = allPermissions
+    requestsURL = E2 + "/api/2.0/permissions/jobs/"
+    requestsURL += str(newJobID)
+    payload = json.dumps(aclList)
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {tokenE2}'
+    }
+    print(requestsURL)
+    response = requests.request(method, requestsURL, headers=headers, data=payload)
+
+    if response.status_code == 200:
+        newJobID = response.json()['object_id']
+        print(f"Successfully created job permissions {newJobID}.")
+        return newJobID
+    else:
+        print(response.text)
+        return 'Failed'
+
+
 def _post_job_permissions_api_call(workspaceURLE2, tokenE2, jobJSON, newJobID):
     print("Starting POST call to create the job...")
     allPermissions = []
@@ -357,7 +440,7 @@ def _job_id_mapper(oldJobID, newjobID, jobName):
     y = json.loads(x)
     return y
     
-def main(ST, E2, JOBS, STTOKEN, E2TOKEN, PERMISSIONS_ONLY, NEWJOBS):
+def main(ST, E2, JOBS, STTOKEN, E2TOKEN, PERMISSIONS_ONLY, NEWJOBS, REPLACE_IP_ARN, OLD_IP_ARNS, NEW_IP_ARNS):
     print("Starting...")
 
     confirmation1 = input(f"Please confirm ST workspace: {ST}. [YES to continue] :")
@@ -381,6 +464,15 @@ def main(ST, E2, JOBS, STTOKEN, E2TOKEN, PERMISSIONS_ONLY, NEWJOBS):
     jobDict = {}
     permissions = []
 
+    if REPLACE_IP_ARN == True:
+        arn_mapping = {}
+        OLD_IP_ARNS = OLD_IP_ARNS.split(",")
+        NEW_IP_ARNS = NEW_IP_ARNS.split(",")
+        assert len(OLD_IP_ARNS) == len(NEW_IP_ARNS), "Number of old instance profile ARNs specified does not match number of new instance profile ARNs."
+        for i in range(0, len(OLD_IP_ARNS)):
+            arn_mapping[OLD_IP_ARNS[i]] = NEW_IP_ARNS[i]
+        print(arn_mapping)
+
     if PERMISSIONS_ONLY == True:
         NEWJOBS = NEWJOBS.split(",")
         assert NEWJOBS is not None and len(NEWJOBS) == len(JOBS)
@@ -389,6 +481,9 @@ def main(ST, E2, JOBS, STTOKEN, E2TOKEN, PERMISSIONS_ONLY, NEWJOBS):
             oldIds.append(JOB)
             permissionsJSON = _get_job_permissions_api_call(ST, JOB, STTOKEN)
             objectId = _post_job_permissions_api_call(E2, E2TOKEN, permissionsJSON, NEWJOB)
+            if objectId == 'Failed':
+                permissionsJSON = _get_job_permissions_api_call(ST, JOB, STTOKEN)
+                objectId = _handle_username_capitalization(E2, E2TOKEN, permissionsJSON, NEWJOB)
             newIds.append(NEWJOB)
             permissions.append(permissionsJSON)
             print(f"ACLs imported for {objectId}")
@@ -421,6 +516,8 @@ def main(ST, E2, JOBS, STTOKEN, E2TOKEN, PERMISSIONS_ONLY, NEWJOBS):
                 oldStatuses.append("FLAG: No schedule included in JSON. Check E2 job to ensure paused.")
             time.sleep(1)
             if jobSettings is not None:
+                if REPLACE_IP_ARN == True:
+                    jobSettings = _replace_instance_profile_ARN(arn_mapping, jobSettings)
                 jobSettings = _replace_instance_pools(E2, E2TOKEN, jobSettings, ST, STTOKEN)
                 jobSettings = _replace_cluster_id(E2, E2TOKEN, jobSettings, ST, STTOKEN)
                 jobSettings = _replace_cluster_policy_id(E2, E2TOKEN, jobSettings, ST, STTOKEN)
@@ -428,6 +525,9 @@ def main(ST, E2, JOBS, STTOKEN, E2TOKEN, PERMISSIONS_ONLY, NEWJOBS):
                 newIds.append(newJOB)
                 permissionsJSON = _get_job_permissions_api_call(ST, JOB, STTOKEN)
                 objectId = _post_job_permissions_api_call(E2, E2TOKEN, permissionsJSON, newJOB)
+                if objectId == 'Failed':
+                    permissionsJSON = _get_job_permissions_api_call(ST, JOB, STTOKEN)
+                    objectId = _handle_username_capitalization(E2, E2TOKEN, permissionsJSON, newJOB)
                 permissions.append(permissionsJSON)
                 print(f"ACLs imported for {objectId}")
             else:
@@ -459,5 +559,8 @@ if __name__ == "__main__":
     parser.add_argument("--jobIDs", "--ID", dest="JOBS", help="Job IDs to be migrated to E2. Example: 71,22,23.")
     parser.add_argument("--PERMISSIONS_ONLY", "--PERMS", dest="PERMISSIONS_ONLY", action="store_true", help="Flag on whether permissions should be only run. Requires --NEWIDS to be passed.")
     parser.add_argument("--NEWJOBS", dest="NEWJOBS", help="Job IDs from E2, in matching order for ST jobs. Used for permission flag. Example: 71,22,23.")
+    parser.add_argument("--REPLACE_IP_ARN", dest="REPLACE_IP_ARN", action="store_true", help="Flag on whether instance profile ARNs should be replaced. Requires --OLD_IP_ARNS and --NEW_IP_ARNS to be passed.")
+    parser.add_argument("--OLD_IP_ARNS", dest="OLD_IP_ARNS", help="Old Instance Profile ARNs, in matching order for new E2 Instance Profile ARNs. Used for REPLACE_IP_ARN flag.")
+    parser.add_argument("--NEW_IP_ARNS", dest="NEW_IP_ARNS", help="New Instance Profile ARNs, in matching order for ST Instance Profile ARNs. Used for REPLACE_IP_ARN flag.")
     parser = parser.parse_args()
-    main(parser.ST, parser.E2, parser.JOBS, parser.STTOKEN, parser.E2TOKEN, parser.PERMISSIONS_ONLY, parser.NEWJOBS)
+    main(parser.ST, parser.E2, parser.JOBS, parser.STTOKEN, parser.E2TOKEN, parser.PERMISSIONS_ONLY, parser.NEWJOBS, parser.REPLACE_IP_ARN, parser.OLD_IP_ARNS, parser.NEW_IP_ARNS)
