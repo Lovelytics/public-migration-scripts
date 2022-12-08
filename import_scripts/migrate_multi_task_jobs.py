@@ -474,7 +474,7 @@ def _post_create_all_new_permissions_api_call(E2, E2TOKEN, NEW_OWNER, NEWJOB):
         return 'Failed'
 
     
-def main(ST, E2, JOBS, STTOKEN, E2TOKEN, PERMISSIONS_ONLY, NEWJOBS, REPLACE_IP_ARN, OLD_IP_ARNS, NEW_IP_ARNS):
+def main(ST, E2, JOBS, STTOKEN, E2TOKEN, PERMISSIONS_ONLY, NEWJOBS, REPLACE_IP_ARN, OLD_IP_ARNS, NEW_IP_ARNS, NEW_OWNER):
     print("Starting...")
 
     confirmation1 = input(f"Please confirm ST workspace: {ST}. [YES to continue] :")
@@ -572,7 +572,7 @@ def main(ST, E2, JOBS, STTOKEN, E2TOKEN, PERMISSIONS_ONLY, NEWJOBS, REPLACE_IP_A
                     permissions.append(permissionsJSON)
                     print(f"ACLs imported for {objectId}")
                 else:
-                    objectId = _post_create_all_new_permissions_api_call(E2, E2TOKEN, permissionsJSON, newJOB)
+                    objectId = _post_create_all_new_permissions_api_call(E2, E2TOKEN, NEW_OWNER, newJOB)
                     permissions.append(permissionsJSON)
                     print(f"ACLs imported for {objectId}")
             else:
@@ -607,5 +607,6 @@ if __name__ == "__main__":
     parser.add_argument("--REPLACE_IP_ARN", dest="REPLACE_IP_ARN", action="store_true", help="Flag on whether instance profile ARNs should be replaced. Requires --OLD_IP_ARNS and --NEW_IP_ARNS to be passed.")
     parser.add_argument("--OLD_IP_ARNS", dest="OLD_IP_ARNS", help="Old Instance Profile ARNs, in matching order for new E2 Instance Profile ARNs. Used for REPLACE_IP_ARN flag.")
     parser.add_argument("--NEW_IP_ARNS", dest="NEW_IP_ARNS", help="New Instance Profile ARNs, in matching order for ST Instance Profile ARNs. Used for REPLACE_IP_ARN flag.")
+    parser.add_argument("--NEW_OWNER", dest="NEW_OWNER", help="Specify a new owner for all jobs.")
     parser = parser.parse_args()
-    main(parser.ST, parser.E2, parser.JOBS, parser.STTOKEN, parser.E2TOKEN, parser.PERMISSIONS_ONLY, parser.NEWJOBS, parser.REPLACE_IP_ARN, parser.OLD_IP_ARNS, parser.NEW_IP_ARNS)
+    main(parser.ST, parser.E2, parser.JOBS, parser.STTOKEN, parser.E2TOKEN, parser.PERMISSIONS_ONLY, parser.NEWJOBS, parser.REPLACE_IP_ARN, parser.OLD_IP_ARNS, parser.NEW_IP_ARNS, parser.NEW_OWNER)
