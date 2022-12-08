@@ -564,7 +564,8 @@ def main(ST, E2, JOBS, STTOKEN, E2TOKEN, PERMISSIONS_ONLY, NEWJOBS, REPLACE_IP_A
                 newJOB = _post_job_api_call(E2, E2TOKEN, jobSettings)
                 newIds.append(newJOB)
                 permissionsJSON = _get_job_permissions_api_call(ST, JOB, STTOKEN)
-                if permissionsJSON is not None:
+                if permissionsJSON is not None or permissionsJSON != None:
+                    print("Creating E2 permissions...")
                     objectId = _post_job_permissions_api_call(E2, E2TOKEN, permissionsJSON, newJOB)
                     if objectId == 'Failed':
                         permissionsJSON = _get_job_permissions_api_call(ST, JOB, STTOKEN)
@@ -572,6 +573,7 @@ def main(ST, E2, JOBS, STTOKEN, E2TOKEN, PERMISSIONS_ONLY, NEWJOBS, REPLACE_IP_A
                     permissions.append(permissionsJSON)
                     print(f"ACLs imported for {objectId}")
                 else:
+                    print("No ST permissions found, making new ones in E2...")
                     objectId = _post_create_all_new_permissions_api_call(E2, E2TOKEN, NEW_OWNER, newJOB)
                     permissions.append(permissionsJSON)
                     print(f"ACLs imported for {objectId}")
