@@ -60,7 +60,7 @@ def main(checkpoint):
 
     # shared
     try:
-        shared_df = util.create_shared_logs(checkpoint, directory_name = "artifacts/shared")
+        shared_df = util.create_shared_logs(checkpoint, directory_name = "artifacts/Shared")
         util.save_to_csv(shared_df, 'shared_logs.csv')
     except:
         print("Error while trying to read shared directory. Skipping...")
