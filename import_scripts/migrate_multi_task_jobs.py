@@ -445,6 +445,10 @@ def _post_create_all_new_permissions_api_call(E2, E2TOKEN, NEW_OWNER, NEWJOB):
     newACL = {
         "access_control_list": [
             {
+                "user_name": "robb.fournier@sportsbet.com.au",
+                "permission_level": "CAN_MANAGE"
+            },
+            {
                 "user_name": NEW_OWNER,
                 "permission_level": "IS_OWNER"
             }, 
@@ -463,7 +467,7 @@ def _post_create_all_new_permissions_api_call(E2, E2TOKEN, NEW_OWNER, NEWJOB):
         'Authorization': f'Bearer {E2TOKEN}'
     }
     print(requestsURL)
-    response = requests.request("PUT", requestsURL, headers=headers, data=payload)
+    response = requests.request("PATCH", requestsURL, headers=headers, data=payload)
 
     if response.status_code == 200:
         newJobID = response.json()['object_id']
