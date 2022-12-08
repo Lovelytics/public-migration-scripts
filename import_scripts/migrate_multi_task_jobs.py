@@ -439,6 +439,40 @@ def _job_id_mapper(oldJobID, newjobID, jobName):
     x = '{name:' + jobName + ', oldJobID:' + oldJobID + 'newJobID' + newjobID
     y = json.loads(x)
     return y
+
+def _post_create_all_new_permissions_api_call(E2, E2TOKEN, NEW_OWNER, NEWJOB):
+
+    newACL = {
+        "access_control_list": [
+            {
+                "user_name": NEW_OWNER,
+                "permission_level": "IS_OWNER"
+            }, 
+            {
+                "group_name": "admins",
+                "permission_level": "CAN MANAGE"
+            }
+        ]
+    }
+
+    requestsURL = E2 + "/api/2.0/permissions/jobs/"
+    requestsURL += str(NEWJOB)
+    payload = json.dumps(newACL)
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {E2TOKEN}'
+    }
+    print(requestsURL)
+    response = requests.request("PUT", requestsURL, headers=headers, data=payload)
+
+    if response.status_code == 200:
+        newJobID = response.json()['object_id']
+        print(f"Successfully added job permissions {newJobID}.")
+        return newJobID
+    else:
+        print(response.text)
+        return 'Failed'
+
     
 def main(ST, E2, JOBS, STTOKEN, E2TOKEN, PERMISSIONS_ONLY, NEWJOBS, REPLACE_IP_ARN, OLD_IP_ARNS, NEW_IP_ARNS):
     print("Starting...")
@@ -480,13 +514,19 @@ def main(ST, E2, JOBS, STTOKEN, E2TOKEN, PERMISSIONS_ONLY, NEWJOBS, REPLACE_IP_A
             time.sleep(1)
             oldIds.append(JOB)
             permissionsJSON = _get_job_permissions_api_call(ST, JOB, STTOKEN)
-            objectId = _post_job_permissions_api_call(E2, E2TOKEN, permissionsJSON, NEWJOB)
-            if objectId == 'Failed':
-                permissionsJSON = _get_job_permissions_api_call(ST, JOB, STTOKEN)
-                objectId = _handle_username_capitalization(E2, E2TOKEN, permissionsJSON, NEWJOB)
-            newIds.append(NEWJOB)
-            permissions.append(permissionsJSON)
-            print(f"ACLs imported for {objectId}")
+            if permissionsJSON is not None:
+                objectId = _post_job_permissions_api_call(E2, E2TOKEN, permissionsJSON, NEWJOB)
+                if objectId == 'Failed':
+                    permissionsJSON = _get_job_permissions_api_call(ST, JOB, STTOKEN)
+                    objectId = _handle_username_capitalization(E2, E2TOKEN, permissionsJSON, NEWJOB)
+                newIds.append(NEWJOB)
+                permissions.append(permissionsJSON)
+                print(f"ACLs imported for {objectId}")
+            else:
+                objectId = _post_create_all_new_permissions_api_call(E2, E2TOKEN, NEW_OWNER, NEWJOB)
+                newIds.append(NEWJOB)
+                permissions.append(permissionsJSON)
+                print(f"ACLs imported for {objectId}")
         
         jobDict.update(
             {
@@ -524,12 +564,17 @@ def main(ST, E2, JOBS, STTOKEN, E2TOKEN, PERMISSIONS_ONLY, NEWJOBS, REPLACE_IP_A
                 newJOB = _post_job_api_call(E2, E2TOKEN, jobSettings)
                 newIds.append(newJOB)
                 permissionsJSON = _get_job_permissions_api_call(ST, JOB, STTOKEN)
-                objectId = _post_job_permissions_api_call(E2, E2TOKEN, permissionsJSON, newJOB)
-                if objectId == 'Failed':
-                    permissionsJSON = _get_job_permissions_api_call(ST, JOB, STTOKEN)
-                    objectId = _handle_username_capitalization(E2, E2TOKEN, permissionsJSON, newJOB)
-                permissions.append(permissionsJSON)
-                print(f"ACLs imported for {objectId}")
+                if permissionsJSON is not None:
+                    objectId = _post_job_permissions_api_call(E2, E2TOKEN, permissionsJSON, newJOB)
+                    if objectId == 'Failed':
+                        permissionsJSON = _get_job_permissions_api_call(ST, JOB, STTOKEN)
+                        objectId = _handle_username_capitalization(E2, E2TOKEN, permissionsJSON, newJOB)
+                    permissions.append(permissionsJSON)
+                    print(f"ACLs imported for {objectId}")
+                else:
+                    objectId = _post_create_all_new_permissions_api_call(E2, E2TOKEN, permissionsJSON, newJOB)
+                    permissions.append(permissionsJSON)
+                    print(f"ACLs imported for {objectId}")
             else:
                 print(f"Job {JOB} failed.")
         
