@@ -467,7 +467,7 @@ def _post_create_all_new_permissions_api_call(E2, E2TOKEN, NEW_OWNER, NEWJOB):
         'Authorization': f'Bearer {E2TOKEN}'
     }
     print(requestsURL)
-    response = requests.request("PATCH", requestsURL, headers=headers, data=payload)
+    response = requests.request("PUT", requestsURL, headers=headers, data=payload)
 
     if response.status_code == 200:
         newJobID = response.json()['object_id']
