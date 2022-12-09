@@ -451,6 +451,26 @@ def _post_create_all_new_permissions_api_call(E2, E2TOKEN, NEW_OWNER, NEWJOB):
             {
                 "group_name": "admins",
                 "permission_level": "CAN_MANAGE"
+            }, 
+            {
+                "group_name": "e2-ds-train-user-rw-pii3",
+                "permission_level": "CAN_MANAGE_RUN"
+            },
+            {
+                "group_name": "e2-ds-admin",
+                "permission_level": "CAN_MANAGE"
+            },
+            {
+                "group_name": "e2-superadmin",
+                "permission_level": "CAN_MANAGE"
+            },
+            {
+                "group_name": "e2-ds-train-user-rw-pii2",
+                "permission_level": "CAN_MANAGE_RUN"
+            },
+            {
+                "group_name": "e2-ds-support",
+                "permission_level": "CAN_MANAGE_RUN"
             }
         ]
     }
