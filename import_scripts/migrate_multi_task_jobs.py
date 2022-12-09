@@ -445,16 +445,12 @@ def _post_create_all_new_permissions_api_call(E2, E2TOKEN, NEW_OWNER, NEWJOB):
     newACL = {
         "access_control_list": [
             {
-                "user_name": "robb.fournier@sportsbet.com.au",
-                "permission_type": "CAN_MANAGE"
-            },
-            {
                 "user_name": NEW_OWNER,
-                "permission_type": "IS_OWNER"
+                "permission_level": "IS_OWNER"
             }, 
             {
                 "group_name": "admins",
-                "permission_type": "CAN MANAGE"
+                "permission_level": "CAN_MANAGE"
             }
         ]
     }
