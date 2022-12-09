@@ -458,7 +458,7 @@ def _post_create_all_new_permissions_api_call(E2, E2TOKEN, NEW_OWNER, NEWJOB):
             }
         ]
     }
-
+    print(newACL)
     requestsURL = E2 + "/api/2.0/permissions/jobs/"
     requestsURL += str(NEWJOB)
     payload = json.dumps(newACL)
